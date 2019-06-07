@@ -58,7 +58,7 @@ Resources:
           - { RegionSubnet: !FindInMap [RegionMap, Ref: "AWS::Region", RegionSubnet] }            
       Tags:
         - Key: Name
-          Value: aws-ping-vpc-cross-region
+          Value: aws-iperf-vpc-cross-region
 
   # Resources for SSM
   # https://docs.aws.amazon.com/systems-manager/latest/userguide/automation-cf.html#automation-cf-create
@@ -101,7 +101,7 @@ Resources:
       VpcId: !Ref VPC
       Tags:
         - Key: Name
-          Value: aws-ping-subnet-az-1
+          Value: aws-iperf-subnet-az-1
 
   # Define Internet Gateway and the attachment to VPC          
   InternetGateway:
@@ -109,7 +109,7 @@ Resources:
     Properties:
       Tags:
       - Key: Name
-        Value: aws-ping-internet-gateway
+        Value: aws-iperf-internet-gateway
   VPCGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
     Properties: 
@@ -124,7 +124,7 @@ Resources:
       VpcId: !Ref VPC
       Tags:
       - Key: Name
-        Value: aws-ping-route-table
+        Value: aws-iperf-route-table
   RouteInternetGateway:
     Type: AWS::EC2::Route
     Properties: 
@@ -142,12 +142,12 @@ Resources:
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties: 
-      GroupName: aws-ping-security-group
+      GroupName: aws-iperf-security-group
       GroupDescription: security group allowing SSH and ICMP
       VpcId: !Ref VPC
       Tags:
         - Key: Name
-          Value: aws-ping-security-group
+          Value: aws-iperf-security-group
   SecurityGropuIngressInternal:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:

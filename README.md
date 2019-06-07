@@ -177,7 +177,7 @@ CREATE EXTERNAL TABLE results (
                        >
 )                 
 ROW FORMAT SERDE 'org.openx.data.jsonserde.JsonSerDe'
-LOCATION 's3://samplebucket-richardimaoka-sample-sample/aws-ping-cross-region'
+LOCATION 's3://samplebucket-richardimaoka-sample-sample/aws-iperf-cross-region'
 ```
 
 
@@ -196,3 +196,9 @@ FROM
   "aws_ping_cross_region"."results"
 limit 10;
 ```
+
+# Submodule 
+- git submodule add https://github.com/richardimaoka/ping-to-json.git
+- git clone --recurse-submodules https://github.com/richardimaoka/aws-iperf-cross-region
+- git submodule update --init --recursive
+  - https://github.blog/2016-02-01-working-with-submodules/

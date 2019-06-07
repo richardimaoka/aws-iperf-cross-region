@@ -2,5 +2,5 @@
 yum update -y
 yum -y install git
 cd /home/ec2-user
-git clone --recurse-submodules https://github.com/richardimaoka/aws-ping-cross-region
+git clone --recurse-submodules https://github.com/richardimaoka/aws-iperf-cross-region
 yum -y install jq

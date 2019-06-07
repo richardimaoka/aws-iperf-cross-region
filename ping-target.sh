@@ -102,7 +102,7 @@ echo "Merging ping_result.json nd ping_metadata.json into result-from-${SOURCE_R
 jq -s '.[0] * .[1]' ping_result.json ping_metadata.json | jq -c "." > "result-from-${SOURCE_REGION}-to-${TARGET_REGION}.log"
 
 # move the result file to S3
-echo "Copying result-from-${SOURCE_REGION}-to-${TARGET_REGION}.log to s3://${S3_BUCKET_NAME}/aws-ping-cross-region/${TEST_EXECUTION_UUID}/"
+echo "Copying result-from-${SOURCE_REGION}-to-${TARGET_REGION}.log to s3://${S3_BUCKET_NAME}/aws-iperf-cross-region/${TEST_EXECUTION_UUID}/"
 aws s3 cp \
   "result-from-${SOURCE_REGION}-to-${TARGET_REGION}.log" \
-  "s3://${S3_BUCKET_NAME}/aws-ping-cross-region/${TEST_EXECUTION_UUID}/result-from-${SOURCE_REGION}-to-${TARGET_REGION}.log"
+  "s3://${S3_BUCKET_NAME}/aws-iperf-cross-region/${TEST_EXECUTION_UUID}/result-from-${SOURCE_REGION}-to-${TARGET_REGION}.log"
