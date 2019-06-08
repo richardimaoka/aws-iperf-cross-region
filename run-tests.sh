@@ -58,74 +58,94 @@ if [ -n "${ERROR}" ] ; then
 fi
 
 ######################################################
-# 2. Create EC2 instances and send the ping command
+# regions
 ######################################################
-REGIONS=$(aws ec2 describe-regions --query "Regions[].RegionName" --output text)
-
-for SOURCE_REGION in ${REGIONS}
+# The $REGION_PAIRS variable to hold text like below, 
+#   - delimited by new lines
+#   - split by a whitespace
+#
+# ap-northeast-2 eu-west-2
+# ap-northeast-2 eu-west-1
+# ap-northeast-2 ap-northeast-1
+# ap-northeast-2 sa-east-1
+# ap-northeast-2 ca-central-1
+# sa-east-1 eu-north-1
+# sa-east-1 eu-west-1
+# ...
+REGIONS=$(aws ec2 describe-regions --query "Regions[].[RegionName]" --output text)
+for REGION1 in $REGIONS
 do
-  for TARGET_REGION in ${REGIONS}
+  for REGION2 in $REGIONS
   do
-    if [ "${SOURCE_REGION}" != "${TARGET_REGION}" ]; then
-
-      ######################################################
-      # 2.1 Run the EC2 instances and wait
-      ######################################################
-      echo "Running the EC2 instances in the source region=${SOURCE_REGION} and the target region=${TARGET_REGION}" 
-      if ! EC2_OUTPUT=$(echo "${EC2_INPUT_JSON}" | ./run-ec2-instance.sh  --stack-name ${STACK_NAME} --source-region "${SOURCE_REGION}" --target-region "${TARGET_REGION}") ; then
-        exit 1
-      fi
-
-      SOURCE_INSTANCE_ID=$(echo "${EC2_OUTPUT}" | jq -r ".source.instance_id")
-      TARGET_INSTANCE_ID=$(echo "${EC2_OUTPUT}" | jq -r ".target.instance_id")
-      TARGET_IP_ADDRESS=$(echo "${EC2_OUTPUT}" | jq -r ".target.private_ip_address")
-
-      echo "Waiting for the EC2 instances to be status = ok: source = ${SOURCE_INSTANCE_ID} and target = ${TARGET_INSTANCE_ID}"
-      if ! aws ec2 wait instance-status-ok --instance-ids "${SOURCE_INSTANCE_ID}" --region "${SOURCE_REGION}" ; then
-        >&2 echo "ERROR: failed to wait on the source EC2 instance = ${SOURCE_INSTANCE_ID}"
-        exit 1
-      elif ! aws ec2 wait instance-status-ok --instance-ids "${TARGET_INSTANCE_ID}" --region "${TARGET_REGION}" ; then
-        >&2 echo "ERROR: failed to wait on the source EC2 instance = ${TARGET_INSTANCE_ID}"
-        exit 1
-      fi
-
-      ######################################################
-      # 2.2 Send the command and sleep to wait
-      ######################################################
-      echo "Sending command to the source EC"
-      if ! aws ssm send-command \
-        --instance-ids "${SOURCE_INSTANCE_ID}" \
-        --document-name "AWS-RunShellScript" \
-        --comment "aws-iperf command to run ping to all relevant EC2 instances in all the regions" \
-        --parameters commands=["/home/ec2-user/aws-iperf-cross-region/ping-target.sh --source-region ${SOURCE_REGION} --target-region ${TARGET_REGION} --target-ip ${TARGET_IP_ADDRESS} --test-uuid ${TEST_EXECUTION_UUID} --s3-bucket ${S3_BUCKET_NAME}"] \
-        --region "${SOURCE_REGION}" > /dev/null ; then
-        >&2 echo "ERROR: failed to send command to = ${SOURCE_INSTANCE_ID}"
-      fi
-
-      # There's no quick and wasy way to signal the end of the test, so just sleep enough to wait
-      echo "Sleeping to let the test finish"
-      sleep 90s
-
-      ######################################################
-      # 2.3 Terminate the EC2 instances
-      ######################################################
-      echo "Terminate the EC2 instances"
-      if ! aws ec2 terminate-instances --instance-ids "${SOURCE_INSTANCE_ID}" --region "${SOURCE_REGION}" > /dev/null ; then
-        >&2 echo "ERROR: failed terminate the source EC2 instance = ${SOURCE_INSTANCE_ID}"
-        exit 1
-      fi
-      if ! aws ec2 terminate-instances --instance-ids "${TARGET_INSTANCE_ID}" --region "${TARGET_REGION}" > /dev/null ; then
-        >&2 echo "ERROR: failed terminate the target EC2 instance = ${TARGET_INSTANCE_ID}"
-        exit 1
-      fi
-      if ! aws ec2 wait instance-terminated --instance-ids "${SOURCE_INSTANCE_ID}" --region "${SOURCE_REGION}" > /dev/null ; then
-        >&2 echo "ERROR: failed to wait on the termination of the EC2 instance = ${SOURCE_INSTANCE_ID}"
-        exit 1
-      fi
-      if ! aws ec2 wait instance-terminated --instance-ids "${TARGET_INSTANCE_ID}" --region "${TARGET_REGION}" > /dev/null ; then
-        >&2 echo "ERROR: failed to wait  on the termination of the EC2 instance = ${SOURCE_INSTANCE_ID}"
-        exit 1
-      fi
+    if [ "${REGION1}" != "${REGION2}" ] ; then
+      REGION_PAIRS="${REMAINING_PAIRS}\n${REGION1} ${REGION2}"
     fi
   done
+done
+
+# Pick up one region pair at a time
+# REGION_PAIRS will remove the picked-up element at the end of an iteration
+while PICKED_UP=$(echo "${REGION_PAIRS}" | shuf -n 1) && [ -n "${PICKED_UP}" ]
+do
+   SORUCE_REGION=$(echo "${PICKED_UP}" | awk '{print $1}')
+   TARGET_REGION=$(echo "${PICKED_UP}" | awk '{print $2}')
+  ######################################################
+  # 2.1 Run the EC2 instances and wait
+  ######################################################
+  echo "Running the EC2 instances in the source region=${SOURCE_REGION} and the target region=${TARGET_REGION}" 
+  if ! EC2_OUTPUT=$(echo "${EC2_INPUT_JSON}" | ./run-ec2-instance.sh  --stack-name ${STACK_NAME} --source-region "${SOURCE_REGION}" --target-region "${TARGET_REGION}") ; then
+    exit 1
+  fi
+
+  SOURCE_INSTANCE_ID=$(echo "${EC2_OUTPUT}" | jq -r ".source.instance_id")
+  TARGET_INSTANCE_ID=$(echo "${EC2_OUTPUT}" | jq -r ".target.instance_id")
+  TARGET_IP_ADDRESS=$(echo "${EC2_OUTPUT}" | jq -r ".target.private_ip_address")
+
+  echo "Waiting for the EC2 instances to be status = ok: source = ${SOURCE_INSTANCE_ID} and target = ${TARGET_INSTANCE_ID}"
+  if ! aws ec2 wait instance-status-ok --instance-ids "${SOURCE_INSTANCE_ID}" --region "${SOURCE_REGION}" ; then
+    >&2 echo "ERROR: failed to wait on the source EC2 instance = ${SOURCE_INSTANCE_ID}"
+    exit 1
+  elif ! aws ec2 wait instance-status-ok --instance-ids "${TARGET_INSTANCE_ID}" --region "${TARGET_REGION}" ; then
+    >&2 echo "ERROR: failed to wait on the source EC2 instance = ${TARGET_INSTANCE_ID}"
+    exit 1
+  fi
+
+  ######################################################
+  # 2.2 Send the command and sleep to wait
+  ######################################################
+  echo "Sending command to the source EC"
+  if ! aws ssm send-command \
+    --instance-ids "${SOURCE_INSTANCE_ID}" \
+    --document-name "AWS-RunShellScript" \
+    --comment "aws-iperf command to run ping to all relevant EC2 instances in all the regions" \
+    --parameters commands=["/home/ec2-user/aws-iperf-cross-region/ping-target.sh --source-region ${SOURCE_REGION} --target-region ${TARGET_REGION} --target-ip ${TARGET_IP_ADDRESS} --test-uuid ${TEST_EXECUTION_UUID} --s3-bucket ${S3_BUCKET_NAME}"] \
+    --region "${SOURCE_REGION}" > /dev/null ; then
+    >&2 echo "ERROR: failed to send command to = ${SOURCE_INSTANCE_ID}"
+  fi
+
+  ######################################################
+  # 2.3 Terminate the EC2 instances
+  ######################################################
+  echo "Terminate the EC2 instances"
+  if ! aws ec2 terminate-instances --instance-ids "${SOURCE_INSTANCE_ID}" --region "${SOURCE_REGION}" > /dev/null ; then
+    >&2 echo "ERROR: failed terminate the source EC2 instance = ${SOURCE_INSTANCE_ID}"
+    exit 1
+  fi
+  if ! aws ec2 terminate-instances --instance-ids "${TARGET_INSTANCE_ID}" --region "${TARGET_REGION}" > /dev/null ; then
+    >&2 echo "ERROR: failed terminate the target EC2 instance = ${TARGET_INSTANCE_ID}"
+    exit 1
+  fi
+  if ! aws ec2 wait instance-terminated --instance-ids "${SOURCE_INSTANCE_ID}" --region "${SOURCE_REGION}" > /dev/null ; then
+    >&2 echo "ERROR: failed to wait on the termination of the EC2 instance = ${SOURCE_INSTANCE_ID}"
+    exit 1
+  fi
+  if ! aws ec2 wait instance-terminated --instance-ids "${TARGET_INSTANCE_ID}" --region "${TARGET_REGION}" > /dev/null ; then
+    >&2 echo "ERROR: failed to wait  on the termination of the EC2 instance = ${SOURCE_INSTANCE_ID}"
+    exit 1
+  fi
+
+  ######################################################
+  # For the next iteration
+  ######################################################
+  REGION_PAIRS=$(echo "${REGION_PAIRS}" | grep -v "${PICKED_UP}")
 done
