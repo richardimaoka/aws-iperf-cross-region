@@ -4,7 +4,7 @@
 cd "$(dirname "$0")" || exit
 
 ######################################
-# Parse options
+# 1.1 Parse options
 ######################################
 for OPT in "$@"
 do
@@ -33,6 +33,22 @@ do
       TARGET_REGION="$2"
       shift 2
       ;;
+    '--test-uuid' )
+      if [ -z "$2" ]; then
+          echo "option --test-uuid requires an argument -- $1" 1>&2
+          exit 1
+      fi
+      TEST_EXECUTION_UUID="$2"
+      shift 2
+      ;;
+    '--s3-bucket' )
+        if [ -z "$2" ]; then
+            echo "option --s3-bucket requires an argument -- $1" 1>&2
+            exit 1
+        fi
+        S3_BUCKET_NAME="$2"
+        shift 2
+        ;;
     '-f' | '--file-name' )
       if [ -z "$2" ]; then
           echo "option -f or --file-name requires an argument -- $1" 1>&2
@@ -45,7 +61,7 @@ do
 done
 
 ######################################
-# Validate options
+# 1.2 Validate options
 ######################################
 if [ -z "${STACK_NAME}" ] ; then
   >&2 echo "ERROR: option --stack-name needs to be passed"
@@ -59,10 +75,14 @@ if [ -z "${TARGET_REGION}" ] ; then
   >&2 echo "ERROR: option --target-region needs to be passed"
   ERROR="1"
 fi
+if [ -z "${S3_BUCKET_NAME}" ] ; then
+  >&2 echo "ERROR: option --s3-bucket needs to be passed"
+  ERROR="1"
+fi
 
 # Input from stdin or --filename option
 if [ -z "${FILE_NAME}" ] ; then
-  if ! INPUT_JSON=$(cat | jq -r ".") ; then 
+  if ! INPUT_JSON=$(cat | jq -r ".") ; then
     >&2 echo "ERROR: Failed to read input JSON from stdin"
     ERROR="1"
   fi
@@ -78,9 +98,8 @@ if [ -n "${ERROR}" ] ; then
 fi
 
 ######################################
-# 1. Create the source EC2 instance
+# 2.1. Create the source EC2 instance
 ######################################
-
 SOURCE_INSTANCE_TYPE=$(echo "${INPUT_JSON}" | jq -r ".\"$SOURCE_REGION\".instance_type")
 SOURCE_IMAGE_ID=$(echo "${INPUT_JSON}" | jq -r ".\"$SOURCE_REGION\".image_id")
 SOURCE_SECURITY_GROUP_ID=$(echo "${INPUT_JSON}" | jq -r ".\"$SOURCE_REGION\".security_group")
@@ -103,9 +122,8 @@ if ! SOURCE_OUTPUTS=$(aws ec2 run-instances \
 fi
 
 ######################################
-# 2. Create the target EC2 instance
+# 2.2. Create the target EC2 instance
 ######################################
-
 TARGET_INSTANCE_TYPE=$(echo "${INPUT_JSON}" | jq -r ".\"$TARGET_REGION\".instance_type")
 TARGET_IMAGE_ID=$(echo "${INPUT_JSON}" | jq -r ".\"$TARGET_REGION\".image_id")
 TARGET_SECURITY_GROUP_ID=$(echo "${INPUT_JSON}" | jq -r ".\"$TARGET_REGION\".security_group")
@@ -128,19 +146,51 @@ if ! TARGET_OUTPUTS=$(aws ec2 run-instances \
 fi
 
 SOURCE_INSTANCE_ID=$(echo "${SOURCE_OUTPUTS}" | jq -r ".Instances[].InstanceId")
-SOURCE_PRIVATE_IP=$(echo "${SOURCE_OUTPUTS}" | jq -r ".Instances[].NetworkInterfaces[].PrivateIpAddress")
 TARGET_INSTANCE_ID=$(echo "${TARGET_OUTPUTS}" | jq -r ".Instances[].InstanceId")
 TARGET_PRIVATE_IP=$(echo "${TARGET_OUTPUTS}" | jq -r ".Instances[].NetworkInterfaces[].PrivateIpAddress")
 
-echo "{ "
-echo "  \"source\": {"
-echo "    \"instance_id\": \"${SOURCE_INSTANCE_ID}\","
-echo "    \"private_ip_address\": \"${SOURCE_PRIVATE_IP}\","
-echo "    \"region\": \"${SOURCE_REGION}\""
-echo "  },"
-echo "  \"target\": {"
-echo "    \"instance_id\": \"${TARGET_INSTANCE_ID}\","
-echo "    \"private_ip_address\": \"${TARGET_PRIVATE_IP}\","
-echo "    \"region\": \"${TARGET_REGION}\""
-echo "  }"
-echo "}"
+##############################################
+# 2.3. Wait for the EC2 instances to be ready
+##############################################
+echo "Waiting for the EC2 instances to be status = ok: source = ${SOURCE_INSTANCE_ID}(${SOURCE_REGION}) and target = ${TARGET_INSTANCE_ID}(${TARGET_REGION})"
+if ! aws ec2 wait instance-status-ok --instance-ids "${SOURCE_INSTANCE_ID}" --region "${SOURCE_REGION}" ; then
+  >&2 echo "ERROR: failed to wait on the source EC2 instance = ${SOURCE_INSTANCE_ID}"
+  exit 1
+elif ! aws ec2 wait instance-status-ok --instance-ids "${TARGET_INSTANCE_ID}" --region "${TARGET_REGION}" ; then
+  >&2 echo "ERROR: failed to wait on the source EC2 instance = ${TARGET_INSTANCE_ID}"
+  exit 1
+fi
+
+######################################################
+# 3 Send the command and sleep to wait
+######################################################
+echo "Sending command to the source EC2=${SOURCE_INSTANCE_ID}(${SOURCE_REGION})"
+COMMANDS="/home/ec2-user/aws-iperf-cross-region/iperf-target.sh"
+COMMANDS="${COMMANDS} --target-region ${TARGET_REGION}"
+COMMANDS="${COMMANDS} --target-ip ${TARGET_PRIVATE_IP}"
+COMMANDS="${COMMANDS} --test-uuid ${TEST_EXECUTION_UUID}"
+COMMANDS="${COMMANDS} --s3-bucket ${S3_BUCKET_NAME}"
+if ! aws ssm send-command \
+  --instance-ids "${SOURCE_INSTANCE_ID}" \
+  --document-name "AWS-RunShellScript" \
+  --comment "aws-iperf command to run iperf to the target iperf server" \
+  --parameters commands=["${COMMANDS}"] \
+  --region "${SOURCE_REGION}" > /dev/null ; then
+  >&2 echo "ERROR: failed to send command to = ${SOURCE_INSTANCE_ID}"
+fi
+
+# No easy way to signal the end of the command, so sleep to wait enough
+sleep 90s
+
+######################################################
+# 4.3 Terminate the EC2 instances
+######################################################
+echo "Terminate the EC2 instances source=${SOURCE_INSTANCE_ID}(${SOURCE_REGION}) target=${TARGET_INSTANCE_ID}(${TARGET_REGION})"
+if ! aws ec2 terminate-instances --instance-ids "${SOURCE_INSTANCE_ID}" --region "${SOURCE_REGION}" > /dev/null ; then
+  >&2 echo "ERROR: failed terminate the source EC2 instance = ${SOURCE_INSTANCE_ID}"
+  exit 1
+fi
+if ! aws ec2 terminate-instances --instance-ids "${TARGET_INSTANCE_ID}" --region "${TARGET_REGION}" > /dev/null ; then
+  >&2 echo "ERROR: failed terminate the target EC2 instance = ${TARGET_INSTANCE_ID}"
+  exit 1
+fi
