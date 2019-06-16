@@ -3,6 +3,13 @@
 # cd to the current directory as it runs other shell scripts
 cd "$(dirname "$0")" || exit
 
+############################################################
+# Kill the child (background) processes on Ctrl+C = (SIG)INT
+############################################################
+# This script runs run-ec2-instance.sh in the background
+# https://superuser.com/questions/543915/whats-a-reliable-technique-for-killing-background-processes-on-script-terminati/562804
+trap 'kill -- -$$' INT
+
 TEST_EXECUTION_UUID=$(uuidgen)
 S3_BUCKET_NAME="samplebucket-richardimaoka-sample-sample"
 for OPT in "$@"
@@ -43,7 +50,7 @@ if [ -z "${STACK_NAME}" ] ; then
   ERROR="1"
 fi
 if [ -z "${FILE_NAME}" ] ; then
-  if ! EC2_INPUT_JSON=$(./generate-ec2-input-json.sh); then 
+  if ! EC2_INPUT_JSON=$(./generate-ec2-input-json.sh); then
     >&2 echo "ERROR: Failed to generate the input json with ./generate-ec2-input-json.sh"
     ERROR="1"
   fi
@@ -57,95 +64,85 @@ if [ -n "${ERROR}" ] ; then
   exit 1
 fi
 
-######################################################
-# regions
-######################################################
-# The $REGION_PAIRS variable to hold text like below, 
-#   - delimited by new lines
-#   - split by a whitespace
-#
-# ap-northeast-2 eu-west-2
-# ap-northeast-2 eu-west-1
-# ap-northeast-2 ap-northeast-1
-# ap-northeast-2 sa-east-1
-# ap-northeast-2 ca-central-1
-# sa-east-1 eu-north-1
-# sa-east-1 eu-west-1
-# ...
+##############################################################
+# 2. Prepare REGION_PAIRS for efficient loop in the next step
+#############################################################
+# The $REGION_PAIRS variable to hold text like below, delimited by new lines, split by a whitespace:
+#   >ap-northeast-2 eu-west-2
+#   >ap-northeast-2 eu-west-1
+#   >ap-northeast-2 ap-northeast-1
+#   >...
+#   >sa-east-1 eu-north-1
+#   >sa-east-1 eu-west-1
+#   >...
 REGIONS=$(aws ec2 describe-regions --query "Regions[].[RegionName]" --output text)
+REGIONS_INNER_LOOP=$(echo "${REGIONS}")
+TEMPFILE=$(mktemp)
 for REGION1 in $REGIONS
 do
-  for REGION2 in $REGIONS
+  # to avoid the same pair appear twice
+  REGIONS_INNER_LOOP=$(echo "${REGIONS_INNER_LOOP}" | grep -v "${REGION1}")
+  for REGION2 in $REGIONS_INNER_LOOP
   do
-    if [ "${REGION1}" != "${REGION2}" ] ; then
-      REGION_PAIRS="${REMAINING_PAIRS}\n${REGION1} ${REGION2}"
-    fi
+    echo "${REGION1} ${REGION2}" >> "${TEMPFILE}"
   done
 done
+REGION_PAIRS=$(cat "${TEMPFILE}")
 
+######################################################
+# 3. main loop
+######################################################
 # Pick up one region pair at a time
 # REGION_PAIRS will remove the picked-up element at the end of an iteration
 while PICKED_UP=$(echo "${REGION_PAIRS}" | shuf -n 1) && [ -n "${PICKED_UP}" ]
 do
-   SORUCE_REGION=$(echo "${PICKED_UP}" | awk '{print $1}')
-   TARGET_REGION=$(echo "${PICKED_UP}" | awk '{print $2}')
-  ######################################################
-  # 2.1 Run the EC2 instances and wait
-  ######################################################
-  echo "Running the EC2 instances in the source region=${SOURCE_REGION} and the target region=${TARGET_REGION}" 
-  if ! EC2_OUTPUT=$(echo "${EC2_INPUT_JSON}" | ./run-ec2-instance.sh  --stack-name ${STACK_NAME} --source-region "${SOURCE_REGION}" --target-region "${TARGET_REGION}") ; then
-    exit 1
-  fi
+  SOURCE_REGION=$(echo "${PICKED_UP}" | awk '{print $1}')
+  TARGET_REGION=$(echo "${PICKED_UP}" | awk '{print $2}')
 
-  SOURCE_INSTANCE_ID=$(echo "${EC2_OUTPUT}" | jq -r ".source.instance_id")
-  TARGET_INSTANCE_ID=$(echo "${EC2_OUTPUT}" | jq -r ".target.instance_id")
-  TARGET_IP_ADDRESS=$(echo "${EC2_OUTPUT}" | jq -r ".target.private_ip_address")
+  SOURCE_INSTANCE_ID=$(aws ec2 describe-instances \
+    --filters "Name=tag:experiment-name,Values=${STACK_NAME}" \
+    --query "Reservations[*].Instances[?State.Name!='terminated'].InstanceId" \
+    --output text \
+    --region "${SOURCE_REGION}"
+  )
+  TARGET_INSTANCE_ID=$(aws ec2 describe-instances \
+    --filters "Name=tag:experiment-name,Values=${STACK_NAME}" \
+    --query "Reservations[*].Instances[?State.Name!='terminated'].InstanceId" \
+    --output text \
+    --region "${TARGET_REGION}"
+  )
 
-  echo "Waiting for the EC2 instances to be status = ok: source = ${SOURCE_INSTANCE_ID} and target = ${TARGET_INSTANCE_ID}"
-  if ! aws ec2 wait instance-status-ok --instance-ids "${SOURCE_INSTANCE_ID}" --region "${SOURCE_REGION}" ; then
-    >&2 echo "ERROR: failed to wait on the source EC2 instance = ${SOURCE_INSTANCE_ID}"
-    exit 1
-  elif ! aws ec2 wait instance-status-ok --instance-ids "${TARGET_INSTANCE_ID}" --region "${TARGET_REGION}" ; then
-    >&2 echo "ERROR: failed to wait on the source EC2 instance = ${TARGET_INSTANCE_ID}"
-    exit 1
-  fi
+  # Run run-ec2-instance.sh only when both SOURCE_REGION and TARGET_REGION has no EC2 running
+  if [ -z "${SOURCE_INSTANCE_ID}" ] && [ -z "${TARGET_INSTANCE_ID}" ] ; then
+    REMAINING=$(echo "${REGION_PAIRS}" | wc -l)
+    echo "(${REMAINING})Running the EC2 instances in the source region=${SOURCE_REGION} and the target region=${TARGET_REGION}"
+    ######################################################
+    # Run in the background as it takes time, so that
+    # the next iteration can be started without waiting
+    ######################################################
+    (echo "${EC2_INPUT_JSON}" | \
+      ./run-ec2-instance.sh \
+        --stack-name "${STACK_NAME}" \
+        --source-region "${SOURCE_REGION}" \
+        --target-region "${TARGET_REGION}" \
+        --test-uuid "${TEST_EXECUTION_UUID}" \
+        --s3-bucket "${S3_BUCKET_NAME}"
+    ) &
 
-  ######################################################
-  # 2.2 Send the command and sleep to wait
-  ######################################################
-  echo "Sending command to the source EC"
-  if ! aws ssm send-command \
-    --instance-ids "${SOURCE_INSTANCE_ID}" \
-    --document-name "AWS-RunShellScript" \
-    --comment "aws-iperf command to run ping to all relevant EC2 instances in all the regions" \
-    --parameters commands=["/home/ec2-user/aws-iperf-cross-region/ping-target.sh --source-region ${SOURCE_REGION} --target-region ${TARGET_REGION} --target-ip ${TARGET_IP_ADDRESS} --test-uuid ${TEST_EXECUTION_UUID} --s3-bucket ${S3_BUCKET_NAME}"] \
-    --region "${SOURCE_REGION}" > /dev/null ; then
-    >&2 echo "ERROR: failed to send command to = ${SOURCE_INSTANCE_ID}"
-  fi
+    ######################################################
+    # For the next iteration
+    ######################################################
+    REGION_PAIRS=$(echo "${REGION_PAIRS}" | grep -v "${PICKED_UP}")
+    sleep 5s # To let EC2 be captured the by describe-instances commands in the next iteration
 
-  ######################################################
-  # 2.3 Terminate the EC2 instances
-  ######################################################
-  echo "Terminate the EC2 instances"
-  if ! aws ec2 terminate-instances --instance-ids "${SOURCE_INSTANCE_ID}" --region "${SOURCE_REGION}" > /dev/null ; then
-    >&2 echo "ERROR: failed terminate the source EC2 instance = ${SOURCE_INSTANCE_ID}"
-    exit 1
-  fi
-  if ! aws ec2 terminate-instances --instance-ids "${TARGET_INSTANCE_ID}" --region "${TARGET_REGION}" > /dev/null ; then
-    >&2 echo "ERROR: failed terminate the target EC2 instance = ${TARGET_INSTANCE_ID}"
-    exit 1
-  fi
-  if ! aws ec2 wait instance-terminated --instance-ids "${SOURCE_INSTANCE_ID}" --region "${SOURCE_REGION}" > /dev/null ; then
-    >&2 echo "ERROR: failed to wait on the termination of the EC2 instance = ${SOURCE_INSTANCE_ID}"
-    exit 1
-  fi
-  if ! aws ec2 wait instance-terminated --instance-ids "${TARGET_INSTANCE_ID}" --region "${TARGET_REGION}" > /dev/null ; then
-    >&2 echo "ERROR: failed to wait  on the termination of the EC2 instance = ${SOURCE_INSTANCE_ID}"
-    exit 1
-  fi
+  # elif [ -n "${SOURCE_INSTANCE_ID}" ] && [ -z "${TARGET_INSTANCE_ID}" ] ; then
+  #   echo "${SOURCE_REGION} has EC2 running. So try again in the next iteration"
+  # elif [ -z "${SOURCE_INSTANCE_ID}" ] && [ -n "${TARGET_INSTANCE_ID}" ] ; then
+  #   echo "${TARGET_REGION} has EC2 running. So try again in the next iteration"
+  # elif [ -n "${SOURCE_INSTANCE_ID}" ] && [ -n "${TARGET_INSTANCE_ID}" ] ; then
+  #   echo "Both ${SOURCE_REGION} and ${TARGET_INSTANCE_ID} has EC2 running. So try again in the next iteration"
+  # else
+  #   echo "WAZZUP!??"
 
-  ######################################################
-  # For the next iteration
-  ######################################################
-  REGION_PAIRS=$(echo "${REGION_PAIRS}" | grep -v "${PICKED_UP}")
+  fi
 done
