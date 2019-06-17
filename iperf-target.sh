@@ -87,9 +87,9 @@ echo "TEST_EXECUTION_UUID=${TEST_EXECUTION_UUID}"
 echo "S3_BUCKET_NAME=${S3_BUCKET_NAME}"
 
 ##########################################################
-# Step 2: Generate the json from ping result and metadata
+# Step 2: Generate the json from iperf result and metadata
 ##########################################################
-echo "Start pinging the target, and saving to a file, ping_result.json"
+echo "Start iperf-ing the target, and saving to a file, ping_result.json"
 ping -c 30 "${TARGET_IP}" | ping-to-json/ping_to_json.sh > ping_result.json
 
 echo "Saving the metadata to a file, ping_metadata.json"
