@@ -2,7 +2,7 @@
 
 # https://aws.amazon.com/premiumsupport/knowledge-center/network-throughput-benchmark-linux-ec2/
 yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
-yum -y install iperf
+# yum -y install iperf
 yum -y install iperf3
 yum -y install jq
 yum -y install git
