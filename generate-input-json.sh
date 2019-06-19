@@ -46,7 +46,7 @@ fi
 # Create if not exist
 mkdir -p input-files
 
-for INSTANCE_TYPE_FILE in $(ls instance-types/)
+for INSTANCE_TYPE_FILE in $(ls instance-types/ | grep .json)
 do
   echo "Generating input-files/${INSTANCE_TYPE_FILE}"
   jq -s '.[0] * .[1]' "${FILE_NAME}" "instance-types/${INSTANCE_TYPE_FILE}" > "input-files/${INSTANCE_TYPE_FILE}"

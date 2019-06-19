@@ -104,6 +104,7 @@ SOURCE_SECURITY_GROUP_ID=$(echo "${INPUT_JSON}" | jq -r ".\"$SOURCE_REGION\".sec
 SOURCE_SUBNET_ID=$(echo "${INPUT_JSON}" | jq -r ".\"$SOURCE_REGION\".subnet_id")
 SOURCE_INSTANCE_PROFILE=$(echo "${INPUT_JSON}" | jq -r ".\"$SOURCE_REGION\".instance_profile")
 
+echo "Starting EC2 in ${SOURCE_REGION}"
 if ! SOURCE_OUTPUTS=$(aws ec2 run-instances \
   --image-id "${SOURCE_IMAGE_ID}" \
   --instance-type "${SOURCE_INSTANCE_TYPE}" \
@@ -116,6 +117,7 @@ if ! SOURCE_OUTPUTS=$(aws ec2 run-instances \
   --user-data file://user-data.txt \
   --region "${SOURCE_REGION}"
 ) ; then
+  echo "Failed to start EC2 in ${SOURCE_REGION}"
   exit 1
 fi
 
@@ -130,6 +132,7 @@ TARGET_SECURITY_GROUP_ID=$(echo "${INPUT_JSON}" | jq -r ".\"$TARGET_REGION\".sec
 TARGET_SUBNET_ID=$(echo "${INPUT_JSON}" | jq -r ".\"$TARGET_REGION\".subnet_id")
 TARGET_INSTANCE_PROFILE=$(echo "${INPUT_JSON}" | jq -r ".\"$TARGET_REGION\".instance_profile")
 
+echo "Starting EC2 in ${TARGET_REGION}"
 if ! TARGET_OUTPUTS=$(aws ec2 run-instances \
   --image-id "${TARGET_IMAGE_ID}" \
   --instance-type "${TARGET_INSTANCE_TYPE}" \
@@ -142,6 +145,7 @@ if ! TARGET_OUTPUTS=$(aws ec2 run-instances \
   --user-data file://user-data.txt \
   --region "${TARGET_REGION}"
 ) ; then
+  echo "Failed to start EC2 in ${TARGET_REGION}"
   exit 1
 fi
 

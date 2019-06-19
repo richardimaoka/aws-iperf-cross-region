@@ -13,6 +13,6 @@
   "eu-central-1":{"instance_type": "m5a.large"},
   "us-east-1":{"instance_type": "m5a.large"},
   "us-east-2":{"instance_type": "m5a.large"},
-  "us-west-1":{"instance_type": "m5a.large"},
+  "us-west-1":{"instance_type": "m5.large"},
   "us-west-2":{"instance_type": "m5a.large"}
 }
