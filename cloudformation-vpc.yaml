@@ -170,10 +170,10 @@ Resources:
       FromPort: -1
       ToPort: -1
       CidrIp: !Ref SSHLocation
-  # Accept ICMP requests from VPC Peering of **ALL** the regions.
+  # Accept port=5050 requests, used for iperf, from VPC Peering of **ALL** the regions.
   # This is too wide open, but for an experimental purpose, that's probably OK.
   # Do this at your own risk!!
-  SecurityGropuIngressVPCPeeringICMP:
+  SecurityGropuIngressVPCPeering5050:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
       GroupId: !Ref SecurityGroup
@@ -182,7 +182,6 @@ Resources:
       ToPort: -1
       CidrIp: 10.0.0.0/8
 
- 
 Outputs:
   VPCId:
     Description: VPC

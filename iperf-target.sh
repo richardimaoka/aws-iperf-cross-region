@@ -81,17 +81,17 @@ echo "S3_BUCKET_NAME=${S3_BUCKET_NAME}"
 ##########################################################
 # Step 2: Generate the json from iperf result and metadata
 ##########################################################
-echo "Start iperf-ing the target, and saving to a file, ping_result.json"
-ping -c 30 "${TARGET_IP}" | ping-to-json/ping_to_json.sh > ping_result.json
+echo "Start iperf-ing the target, and saving to a file, iperf_result.json"
+iperf3 -c "${TARGET_IP}" -p 5050 -t 30 --json > iperf_result.json
 
-echo "Saving the metadata to a file, ping_metadata.json"
-echo "{ \"metadata\": {\"source_region\": \"${SOURCE_REGION}\", \"target_region\": \"${TARGET_REGION}\", \"test_uuid\": \"${TEST_EXECUTION_UUID}\"  } }" | tee ping_metadata.json
+echo "Saving the metadata to a file, iperf_metadata.json"
+echo "{ \"metadata\": {\"source_region\": \"${SOURCE_REGION}\", \"target_region\": \"${TARGET_REGION}\", \"test_uuid\": \"${TEST_EXECUTION_UUID}\"  } }" | tee iperf_metadata.json
 
 #######################################################
 # Step 3: Merge the json files and upload to S3
 #######################################################
-echo "Merging ping_result.json nd ping_metadata.json into result-from-${SOURCE_REGION}-to-${TARGET_REGION}.log.json"
-jq -s '.[0] * .[1]' ping_result.json ping_metadata.json | jq -c "." > "result-from-${SOURCE_REGION}-to-${TARGET_REGION}.log"
+echo "Merging iperf_result.json nd iperf_metadata.json into result-from-${SOURCE_REGION}-to-${TARGET_REGION}.log.json"
+jq -s '.[0] * .[1]' iperf_result.json iperf_metadata.json | jq -c "." > "result-from-${SOURCE_REGION}-to-${TARGET_REGION}.log"
 
 # move the result file to S3
 echo "Copying result-from-${SOURCE_REGION}-to-${TARGET_REGION}.log to s3://${S3_BUCKET_NAME}/aws-iperf-cross-region/${TEST_EXECUTION_UUID}/"
