@@ -64,6 +64,3 @@ done
 
 # End of JSON
 echo "}"
-
-# jq -s '.[0] * .[1]' "${FILE_NAME}" instance-types.json
-# rm "${FILE_NAME}"

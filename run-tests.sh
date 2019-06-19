@@ -52,7 +52,7 @@ fi
 if [ -z "${FILE_NAME}" ] ; then
   >&2 echo "ERROR: option -f or --file-name needs to be passed"
   ERROR="1"
-else if ! jq -r "." < "${FILE_NAME}"; then
+elif ! jq -r "." < "${FILE_NAME}"; then
   >&2 echo "ERROR: Failed to read input JSON from ${FILE_NAME}"
   ERROR="1"
 fi
