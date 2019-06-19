@@ -50,15 +50,11 @@ if [ -z "${STACK_NAME}" ] ; then
   ERROR="1"
 fi
 if [ -z "${FILE_NAME}" ] ; then
-  if ! EC2_INPUT_JSON=$(./generate-ec2-input-json.sh); then
-    >&2 echo "ERROR: Failed to generate the input json with ./generate-ec2-input-json.sh"
-    ERROR="1"
-  fi
-else
-  if ! EC2_INPUT_JSON=$(jq -r "." < "${FILE_NAME}"); then
-    >&2 echo "ERROR: Failed to read input JSON from ${FILE_NAME}"
-    ERROR="1"
-  fi
+  >&2 echo "ERROR: option -f or --file-name needs to be passed"
+  ERROR="1"
+else if ! jq -r "." < "${FILE_NAME}"; then
+  >&2 echo "ERROR: Failed to read input JSON from ${FILE_NAME}"
+  ERROR="1"
 fi
 if [ -n "${ERROR}" ] ; then
   exit 1
@@ -120,14 +116,13 @@ do
     # Run in the background as it takes time, so that
     # the next iteration can be started without waiting
     ######################################################
-    (echo "${EC2_INPUT_JSON}" | \
-      ./run-ec2-instance.sh \
-        --stack-name "${STACK_NAME}" \
-        --source-region "${SOURCE_REGION}" \
-        --target-region "${TARGET_REGION}" \
-        --test-uuid "${TEST_EXECUTION_UUID}" \
-        --s3-bucket "${S3_BUCKET_NAME}"
-    ) &
+    ./run-ec2-instance.sh \
+      --stack-name "${STACK_NAME}" \
+      --source-region "${SOURCE_REGION}" \
+      --target-region "${TARGET_REGION}" \
+      --test-uuid "${TEST_EXECUTION_UUID}" \
+      --s3-bucket "${S3_BUCKET_NAME}" \
+      --file-name "${FILE_NAME}" &
 
     ######################################################
     # For the next iteration

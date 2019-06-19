@@ -75,24 +75,22 @@ if [ -z "${TARGET_REGION}" ] ; then
   >&2 echo "ERROR: option --target-region needs to be passed"
   ERROR="1"
 fi
+if [ -z "${TEST_EXECUTION_UUID}" ] ; then
+  >&2 echo "ERROR: option --test-uuid needs to be passed"
+  ERROR="1"
+fi
 if [ -z "${S3_BUCKET_NAME}" ] ; then
   >&2 echo "ERROR: option --s3-bucket needs to be passed"
   ERROR="1"
 fi
-
-# Input from stdin or --filename option
 if [ -z "${FILE_NAME}" ] ; then
-  if ! INPUT_JSON=$(cat | jq -r ".") ; then
-    >&2 echo "ERROR: Failed to read input JSON from stdin"
-    ERROR="1"
-  fi
-else
-  if ! INPUT_JSON=$(jq -r "." < "${FILE_NAME}"); then
-    >&2 echo "ERROR: Failed to read input JSON from ${FILE_NAME}"
-    ERROR="1"
-  fi
+  >&2 echo "ERROR: option -f or --file-name needs to be passed"
+  ERROR="1"
 fi
-
+if ! INPUT_JSON=$(jq -r "." < "${FILE_NAME}"); then
+  >&2 echo "ERROR: Failed to read input JSON from ${FILE_NAME}"
+  ERROR="1"
+fi
 if [ -n "${ERROR}" ] ; then
   exit 1
 fi
@@ -121,6 +119,8 @@ if ! SOURCE_OUTPUTS=$(aws ec2 run-instances \
   exit 1
 fi
 
+SOURCE_INSTANCE_ID=$(echo "${SOURCE_OUTPUTS}" | jq -r ".Instances[].InstanceId")
+
 ######################################
 # 2.2. Create the target EC2 instance
 ######################################
@@ -145,7 +145,6 @@ if ! TARGET_OUTPUTS=$(aws ec2 run-instances \
   exit 1
 fi
 
-SOURCE_INSTANCE_ID=$(echo "${SOURCE_OUTPUTS}" | jq -r ".Instances[].InstanceId")
 TARGET_INSTANCE_ID=$(echo "${TARGET_OUTPUTS}" | jq -r ".Instances[].InstanceId")
 TARGET_PRIVATE_IP=$(echo "${TARGET_OUTPUTS}" | jq -r ".Instances[].NetworkInterfaces[].PrivateIpAddress")
 
