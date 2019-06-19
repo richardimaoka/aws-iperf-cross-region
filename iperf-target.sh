@@ -48,10 +48,6 @@ do
   esac
 done
 
-if [ -z "${SOURCE_REGION}" ] ; then
-  echo "ERROR: Option --source-region needs to be specified"
-  ERROR="1"
-fi
 if [ -z "${TARGET_REGION}" ] ; then
   echo "ERROR: Option --target-region needs to be specified"
   ERROR="1"
