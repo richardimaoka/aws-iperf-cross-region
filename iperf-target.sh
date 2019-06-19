@@ -68,11 +68,18 @@ if [ -n "${ERROR}" ] ; then
   exit 1
 fi
 
-echo "SOURCE_REGION=${SOURCE_REGION}"
 echo "TARGET_REGION=${TARGET_REGION}"
 echo "TARGET_IP=${TARGET_IP}"
 echo "TEST_EXECUTION_UUID=${TEST_EXECUTION_UUID}"
 echo "S3_BUCKET_NAME=${S3_BUCKET_NAME}"
+
+##########################################################
+# Info about self
+##########################################################
+SOURCE_REGION=$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/document | jq -r '.region')
+SOURCE_INSTANCE_ID=$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/document | jq -r '.instanceId')
+echo "SOURCE_REGION=${SOURCE_REGION}"
+echo "SOURCE_INSTANCE_ID=${SOURCE_INSTANCE_ID}"
 
 ##########################################################
 # Step 2: Generate the json from iperf result and metadata
