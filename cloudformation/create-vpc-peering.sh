@@ -41,6 +41,10 @@ do
       REGION2="$2"
       shift 2
       ;;
+    -*)
+      echo "illegal option $1" 1>&2
+      exit 1
+      ;;
   esac
 done
 if [ -z "${STACK_NAME}" ] ; then

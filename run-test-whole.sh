@@ -116,7 +116,7 @@ do
     # Run in the background as it takes time, so that
     # the next iteration can be started without waiting
     ######################################################
-    ./run-ec2-instance.sh \
+    ./run-test-region-pair.sh \
       --stack-name "${STACK_NAME}" \
       --source-region "${SOURCE_REGION}" \
       --target-region "${TARGET_REGION}" \

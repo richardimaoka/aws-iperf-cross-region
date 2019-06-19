@@ -17,6 +17,10 @@ do
       FILE_NAME="$2"
       shift 2
       ;;
+    -*)
+      echo "illegal option $1" 1>&2
+      exit 1
+      ;;
   esac
 done
 
@@ -44,6 +48,7 @@ mkdir -p input-files
 
 for INSTANCE_TYPE_FILE in $(ls instance-types/)
 do
+  echo "Generating input-files/${INSTANCE_TYPE_FILE}"
   jq -s '.[0] * .[1]' "${FILE_NAME}" "instance-types/${INSTANCE_TYPE_FILE}" > "input-files/${INSTANCE_TYPE_FILE}"
 done
 
