@@ -78,3 +78,10 @@ do
     fi      
   done
 done
+
+########################################################
+# Step 4: Generate the json file used in the
+# later testing phase
+#######################################################
+
+./generate-vpc-json.sh --stack-name "${STACK_NAME}" > ../vpc.json
