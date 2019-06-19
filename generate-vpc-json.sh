@@ -3,9 +3,9 @@
 # cd to the current directory as it runs other shell scripts
 cd "$(dirname "$0")" || exit
 
-#######################################################
-# Step 1: Parse options and error check
-#######################################################
+######################################
+# 1.1 Parse options
+######################################
 for OPT in "$@"
 do
   case "$OPT" in
@@ -24,12 +24,17 @@ do
   esac
 done
 
+######################################
+# 1.2 Validate options
+######################################
 if [ -z "${STACK_NAME}" ] ; then
   >&2 echo "ERROR: Option --stack-name needs to be specified"
   exit 1
 fi
 
-FILE_NAME=$(tempfile)
+######################################
+# 2. Main processing
+######################################
 
 # Start of JSON
 echo "{"
