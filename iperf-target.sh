@@ -9,14 +9,6 @@ cd "$(dirname "$0")" || exit
 for OPT in "$@"
 do
   case "$OPT" in
-    '--source-region' )
-      if [ -z "$2" ]; then
-          echo "option --target-region requires an argument -- $1" 1>&2
-          exit 1
-      fi
-      SOURCE_REGION="$2"
-      shift 2
-      ;;
     '--target-region' )
       if [ -z "$2" ]; then
           echo "option --target-region requires an argument -- $1" 1>&2
