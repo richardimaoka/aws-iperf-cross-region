@@ -1,0 +1,3 @@
+[submodule "aws-ec2-instance-types"]
+	path = aws-ec2-instance-types
+	url = https://github.com/richardimaoka/aws-ec2-instance-types

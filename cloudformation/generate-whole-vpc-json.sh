@@ -35,11 +35,8 @@ fi
 ######################################
 # 2. Main processing
 ######################################
+mkdir -p intermediate
 
-# Start of JSON
-echo "{"
-
-LAST_REGION=$(aws ec2 describe-regions --query "Regions[].[RegionName]" --output text | tail -1)
 for REGION in $(aws ec2 describe-regions --query "Regions[].[RegionName]" --output text)
 do
   # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/finding-an-ami.html
@@ -56,17 +53,22 @@ do
   SUBNET_ID=$(echo "${OUTPUTS}" | jq -r '.[] | select(.OutputKey=="Subnet") | .OutputValue')
   IAM_INSTANCE_PROFILE=$(echo "${OUTPUTS}" | jq -r '.[] | select(.OutputKey=="InstanceProfile") | .OutputValue')
 
-  echo "\"${REGION}\": {"
-  echo "  \"image_id\": \"${AMI_LINUX2}\","
-  echo "  \"security_group\": \"${SECURITY_GROUP_ID}\","
-  echo "  \"subnet_id\": \"${SUBNET_ID}\","
-  echo "  \"instance_profile\": \"${IAM_INSTANCE_PROFILE}\""
-  if [ "$REGION" = "${LAST_REGION}" ]; then 
-    echo "}"
-  else
-    echo "},"
-  fi
-done
+  # Availability zone of SUBNET_ID
+  AVAILABILITY_ZONE=$(aws ec2 describe-subnets \
+    --query "Subnets[?SubnetId=='${SUBNET_ID}'].AvailabilityZone" \
+    --output text \
+    --region "${REGION}"
+  )
 
-# End of JSON
-echo "}"
+  INTERMEDIATE_FILE="intermediate/${REGION}.json"
+  echo "{" > "${INTERMEDIATE_FILE}"
+  echo "  \"${REGION}\": {" >> "${INTERMEDIATE_FILE}" >> "${INTERMEDIATE_FILE}"
+  echo "    \"image_id\": \"${AMI_LINUX2}\"," >> "${INTERMEDIATE_FILE}"
+  echo "    \"security_group\": \"${SECURITY_GROUP_ID}\"," >> "${INTERMEDIATE_FILE}"
+  echo "    \"subnet_id\": \"${SUBNET_ID}\"," >> "${INTERMEDIATE_FILE}"
+  echo "    \"availability_zone\": \"${AVAILABILITY_ZONE}\"," >> "${INTERMEDIATE_FILE}"
+  echo "    \"instance_profile\": \"${IAM_INSTANCE_PROFILE}\"" >> "${INTERMEDIATE_FILE}"
+  echo "  }" >> "${INTERMEDIATE_FILE}"
+  echo "}" >> "${INTERMEDIATE_FILE}"
+
+done
