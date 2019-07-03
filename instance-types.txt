@@ -1,0 +1,10 @@
+# List up the AWS EC2 instance types with the descending order of priority
+# (i.e.) the top has the highest priority, and the bottom the least.
+
+# t2.micro has free tier, so use it if it's available
+# https://aws.amazon.com/free/?all-free-tier.sort-by=item.additionalFields.SortRank&all-free-tier.sort-order=asc
+# if t2.micro is not available, fall back to t3.micro
+t2.micro
+t3.micro
+
+

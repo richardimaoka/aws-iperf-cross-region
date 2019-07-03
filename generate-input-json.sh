@@ -9,12 +9,12 @@ cd "$(dirname "$0")" || exit
 for OPT in "$@"
 do
   case "$OPT" in
-    '-f' | '--file-name' )
+    '--instance-priority-file' )
       if [ -z "$2" ]; then
-          echo "option -f or --file-name requires an argument -- $1" 1>&2
+          echo "option --instance-priority-file requires an argument -- $1" 1>&2
           exit 1
       fi
-      FILE_NAME="$2"
+      INSTANCE_PRIORITY_FILE="$2"
       shift 2
       ;;
     -*)
@@ -27,28 +27,44 @@ done
 ######################################
 # 1.2 Validate options
 ######################################
-if [ -z "${FILE_NAME}" ] ; then
-  >&2 echo "ERROR: option -f or --file-name needs to be passed"
-  ERROR="1"
-elif ! INPUT_JSON=$(jq -r "." < "${FILE_NAME}"); then
-  >&2 echo "ERROR: Failed to read input JSON from ${FILE_NAME}"
-  ERROR="1"
-fi
-
-if [ -n "${ERROR}" ] ; then
+if [ -z "${INSTANCE_PRIORITY_FILE}" ] ; then
+  >&2 echo "ERROR: option --instance-priority-file needs to be passed"
   exit 1
 fi
 
 ######################################
 # 2. Generate input json files
 ######################################
+# sed to remove whitespace
+INSTANCE_TYPES=$(grep -v "#" < "${INSTANCE_PRIORITY_FILE}" | sed -e 's/\s//g')
 
-# Create if not exist
-mkdir -p input-files
+for REGION in $(jq 'keys | .[]' cloudformation/output.json)
+do  AVAILABILITY_ZONE=$(jq -r ".${REGION}.availability_zone" cloudformation/output.json)
 
-for INSTANCE_TYPE_FILE in $(ls instance-types/ | grep .json)
-do
-  echo "Generating input-files/${INSTANCE_TYPE_FILE}"
-  jq -s '.[0] * .[1]' "${FILE_NAME}" "instance-types/${INSTANCE_TYPE_FILE}" > "input-files/${INSTANCE_TYPE_FILE}"
+  for INSTANCE_TYPE in $INSTANCE_TYPES
+  do
+    CHOSEN_INSTANCE_TYPE=""
+    # jq "[\"key.with.dot\"][\"another.key.with.dot\"]" should be used for keys with dot  
+    if [ -n "${INSTANCE_TYPE}" ] && \
+       [ "true" = "$(jq ".[\"${AVAILABILITY_ZONE}\"][\"${INSTANCE_TYPE}\"]" aws-ec2-instance-types/output.json)" ] ; then
+      CHOSEN_INSTANCE_TYPE=${INSTANCE_TYPE}
+      break
+    fi
+  done
+
+  if [ -z "${CHOSEN_INSTANCE_TYPE}" ] ; then
+    >&2 echo "ERROR: none of instance types defined in file=${INSTANCE_PRIORITY_FILE} can be used in availability-zone=${AVAILABILITY_ZONE} of region=${REGION}"
+    exit 1
+  else
+    echo "${REGION} ${AVAILABILITY_ZONE} ${CHOSEN_INSTANCE_TYPE}"
+  fi
 done
+
+# TODO: generate json which adds instance_type to cloudformatoin/output.json and generate a new file
+# TODO: generate json which adds instance_type to cloudformatoin/output.json and generate a new file
+# TODO: generate json which adds instance_type to cloudformatoin/output.json and generate a new file
+# TODO: generate json which adds instance_type to cloudformatoin/output.json and generate a new file
+# TODO: generate json which adds instance_type to cloudformatoin/output.json and generate a new file
+# TODO: generate json which adds instance_type to cloudformatoin/output.json and generate a new file
+
 
