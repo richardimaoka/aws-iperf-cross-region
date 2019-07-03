@@ -35,40 +35,29 @@ fi
 ######################################
 # 2. Main processing
 ######################################
-mkdir -p intermediate
-
+# Run in background to speed it up
 for REGION in $(aws ec2 describe-regions --query "Regions[].[RegionName]" --output text)
 do
-  # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/finding-an-ami.html
-  AMI_LINUX2=$(aws ec2 describe-images \
-    --region "${REGION}" \
-    --owners amazon \
-    --filters 'Name=name,Values=amzn2-ami-hvm-2.0.????????-x86_64-gp2' 'Name=state,Values=available' \
-    --query "reverse(sort_by(Images, &CreationDate))[0].ImageId" \
-    --output text
-  )
-
-  OUTPUTS=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query "Stacks[].Outputs[]" --region "${REGION}") 
-  SECURITY_GROUP_ID=$(echo "${OUTPUTS}" | jq -r '.[] | select(.OutputKey=="SecurityGroup") | .OutputValue')
-  SUBNET_ID=$(echo "${OUTPUTS}" | jq -r '.[] | select(.OutputKey=="Subnet") | .OutputValue')
-  IAM_INSTANCE_PROFILE=$(echo "${OUTPUTS}" | jq -r '.[] | select(.OutputKey=="InstanceProfile") | .OutputValue')
-
-  # Availability zone of SUBNET_ID
-  AVAILABILITY_ZONE=$(aws ec2 describe-subnets \
-    --query "Subnets[?SubnetId=='${SUBNET_ID}'].AvailabilityZone" \
-    --output text \
-    --region "${REGION}"
-  )
-
-  INTERMEDIATE_FILE="intermediate/${REGION}.json"
-  echo "{" > "${INTERMEDIATE_FILE}"
-  echo "  \"${REGION}\": {" >> "${INTERMEDIATE_FILE}" >> "${INTERMEDIATE_FILE}"
-  echo "    \"image_id\": \"${AMI_LINUX2}\"," >> "${INTERMEDIATE_FILE}"
-  echo "    \"security_group\": \"${SECURITY_GROUP_ID}\"," >> "${INTERMEDIATE_FILE}"
-  echo "    \"subnet_id\": \"${SUBNET_ID}\"," >> "${INTERMEDIATE_FILE}"
-  echo "    \"availability_zone\": \"${AVAILABILITY_ZONE}\"," >> "${INTERMEDIATE_FILE}"
-  echo "    \"instance_profile\": \"${IAM_INSTANCE_PROFILE}\"" >> "${INTERMEDIATE_FILE}"
-  echo "  }" >> "${INTERMEDIATE_FILE}"
-  echo "}" >> "${INTERMEDIATE_FILE}"
-
+  echo "Checking the VPC in region=${REGION}"
+  ./generate-regional-vpc-json.sh \
+    --stack-name "${STACK_NAME}" \
+    --region "${REGION}" &
 done
+
+######################################
+# 3. Wait until the children complete
+######################################
+echo "Wait until all the child processes are finished..."
+
+#Somehow VARIABLE=$(jobs -p) gets empty. So, need to use a file.
+TEMP_FILE=$(mktemp)
+jobs -p > "${TEMP_FILE}"
+
+# Read and go through the ${TEMP_FILE} lines
+while IFS= read -r PID
+do
+  wait "${PID}"
+done < "${TEMP_FILE}"
+
+rm "${TEMP_FILE}"
+echo "Finished!!"

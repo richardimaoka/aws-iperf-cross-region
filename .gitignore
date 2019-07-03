@@ -1,5 +1,5 @@
 .history
 .idea
 input-files
-cloudformation/vpc.json
+cloudformation/output.json
 cloudformation/intermediate

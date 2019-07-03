@@ -51,6 +51,7 @@ fi
 ######################################
 # 2. Main processing
 ######################################
+mkdir -p intermediate
 
 # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/finding-an-ami.html
 AMI_LINUX2=$(aws ec2 describe-images \
@@ -61,7 +62,15 @@ AMI_LINUX2=$(aws ec2 describe-images \
   --output text
 )
 
-OUTPUTS=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query "Stacks[].Outputs[]" --region "${REGION}") 
+if ! OUTPUTS=$(aws cloudformation describe-stacks \
+  --stack-name "${STACK_NAME}" \
+  --query "Stacks[].Outputs[]" \
+  --region "${REGION}"
+) ; then
+  >&2 echo "Failed to produce VPC JSON for region=${REGION}"
+  exit
+fi
+
 SECURITY_GROUP_ID=$(echo "${OUTPUTS}" | jq -r '.[] | select(.OutputKey=="SecurityGroup") | .OutputValue')
 SUBNET_ID=$(echo "${OUTPUTS}" | jq -r '.[] | select(.OutputKey=="Subnet") | .OutputValue')
 IAM_INSTANCE_PROFILE=$(echo "${OUTPUTS}" | jq -r '.[] | select(.OutputKey=="InstanceProfile") | .OutputValue')
@@ -73,13 +82,15 @@ AVAILABILITY_ZONE=$(aws ec2 describe-subnets \
   --region "${REGION}"
 )
 
-echo "{"
-echo "  \"${REGION}\": {"
-echo "    \"image_id\": \"${AMI_LINUX2}\","
-echo "    \"security_group\": \"${SECURITY_GROUP_ID}\","
-echo "    \"subnet_id\": \"${SUBNET_ID}\","
-echo "    \"availability_zone\": \"${AVAILABILITY_ZONE}\","
-echo "    \"instance_profile\": \"${IAM_INSTANCE_PROFILE}\""
-echo "  }"
-echo "}"
+# Produce JSON
+OUTPUT_FILE="intermediate/${REGION}.json"
 
+echo "{" > "${OUTPUT_FILE}"
+echo "  \"${REGION}\": {" >> "${OUTPUT_FILE}"
+echo "    \"image_id\": \"${AMI_LINUX2}\"," >> "${OUTPUT_FILE}"
+echo "    \"security_group\": \"${SECURITY_GROUP_ID}\"," >> "${OUTPUT_FILE}"
+echo "    \"subnet_id\": \"${SUBNET_ID}\"," >> "${OUTPUT_FILE}"
+echo "    \"availability_zone\": \"${AVAILABILITY_ZONE}\"," >> "${OUTPUT_FILE}"
+echo "    \"instance_profile\": \"${IAM_INSTANCE_PROFILE}\"" >> "${OUTPUT_FILE}"
+echo "  }" >> "${OUTPUT_FILE}"
+echo "}" >> "${OUTPUT_FILE}"
