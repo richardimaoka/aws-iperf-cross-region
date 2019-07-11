@@ -61,3 +61,15 @@ done < "${TEMP_FILE}"
 
 rm "${TEMP_FILE}"
 echo "Finished!!"
+
+######################################
+# 4. Aggregate intermediate files
+######################################
+OUTPUT_FILE=output.json
+echo "{ \"metadata\":  {\"stack_name\": \"${STACK_NAME}\" } }" > "${OUTPUT_FILE}"
+
+for JSON_FILE in intermediate/*.json
+do
+  OUTPUT=$(jq -s '.[0] * .[1]' "${OUTPUT_FILE}" "${JSON_FILE}")
+  echo "${OUTPUT}" > "${OUTPUT_FILE}"
+done

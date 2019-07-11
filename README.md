@@ -7,11 +7,14 @@
 
 ## steps to run the example
 
-- run `./create-key-pairs.sh`
+- run `cloudformation/create-key-pairs.sh`
   - this needs to be run only once in your AWS account
   - this adds `demo-key-pair` AWS key pair to all your AWS regions
-- run `./create-stacks.sh`
-  - this creates a CloudFormation stack from `cloudformation.yaml` in each AWS region
+- run `cloudformation/create-vpc-stacks.sh`
+  - this creates a CloudFormation stack from `cloudformation.yaml` in each AWS
+- run `aws-ec2-instance-types/create-vpc-stacks.sh`
+  - this creates a CloudFormation stack from `cloudformation.yaml` in each AWS 
+
 - run `./send-command.sh`
   - this fires `ping-all.sh` on `EC2InstancePingOrigin` to all other EC2 instances
   - go to https://console.aws.amazon.com/ec2/v2/home#Commands:sort=CommandId and find the command you executed in this step

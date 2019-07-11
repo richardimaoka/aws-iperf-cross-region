@@ -45,6 +45,8 @@ Mappings:
       RegionSubnet: 10.115
     us-west-2:
       RegionSubnet: 10.116
+    ap-east-1:
+      RegionSubnet: 10.117
 
 Resources:
   # Define VPC

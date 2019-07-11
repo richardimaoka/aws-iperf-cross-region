@@ -3,6 +3,10 @@
 # cd to the current directory as it runs other shell scripts
 cd "$(dirname "$0")" || exit
 
+######################################
+# 1.1 Parse options
+######################################
+STACK_NAME="IPerfCrossRegionExperiment"
 for OPT in "$@"
 do
   case "$OPT" in
@@ -20,19 +24,14 @@ do
       ;;
   esac
 done
-if [ -z "${STACK_NAME}" ] ; then
-  echo "ERROR: Option --stack-name needs to be specified"
-  exit 1
-fi
 
+###########################################
+# 2: Create the CloudFormation VPC stacks
+###########################################
 AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 SSH_LOCATION="$(curl ifconfig.co 2> /dev/null)/32"
 
 REGIONS=$(aws ec2 describe-regions --query "Regions[].RegionName" --output text)
-
-################################
-# Step 1: Create the VPCs
-################################
 for REGION in ${REGIONS}
 do 
   if ! aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --region "${REGION}" > /dev/null 2>&1; then
@@ -53,7 +52,7 @@ do
 done 
 
 ###################################################
-# Step 2: Wait on CloudFormation VPC stack creation
+# 3: Wait on CloudFormation VPC stack creation
 ###################################################
 for REGION in ${REGIONS}
 do
@@ -65,7 +64,7 @@ do
 done
 
 ################################################
-# Step 3: Create VPC Peering in all the regions
+# 4: Create VPC Peering in all the regions
 ################################################
 AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 
@@ -84,8 +83,8 @@ do
 done
 
 ########################################################
-# Step 4: Generate the json file used in the
+# 5: Generate the json file used in the
 # later testing phase
 #######################################################
 
-./generate-vpc-json.sh --stack-name "${STACK_NAME}" | jq "." > ../vpc.json
+./generate-vpc-json.sh --stack-name "${STACK_NAME}" | jq "." > ../output.json

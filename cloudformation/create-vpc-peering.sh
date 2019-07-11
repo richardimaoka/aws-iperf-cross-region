@@ -6,6 +6,9 @@
 # created by AWS CLI calls in create-vpc-peering.sh. See README.md for more detail
 #######################################################################################
 
+######################################
+# 1.1 Parse options
+######################################
 for OPT in "$@"
 do
   case "$OPT" in
@@ -47,6 +50,10 @@ do
       ;;
   esac
 done
+
+######################################
+# 1.2 Validate options
+######################################
 if [ -z "${STACK_NAME}" ] ; then
   >&2 echo "ERROR: Option --stack-name needs to be specified"
   ERROR="1"
@@ -63,12 +70,12 @@ if [ -n "${ERROR}" ] ; then
   exit 1
 fi
 
-REGION1_VPC_ID=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query "Stacks[].Outputs[?OutputKey=='VPCId'].OutputValue" --output text --region "${REGION1}")
-REGION2_VPC_ID=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query "Stacks[].Outputs[?OutputKey=='VPCId'].OutputValue" --output text --region "${REGION2}")
-
 #######################################
 # Step 1. Create VPC Peering connection
 #######################################
+REGION1_VPC_ID=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query "Stacks[].Outputs[?OutputKey=='VPCId'].OutputValue" --output text --region "${REGION1}")
+REGION2_VPC_ID=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --query "Stacks[].Outputs[?OutputKey=='VPCId'].OutputValue" --output text --region "${REGION2}")
+
 VPC_PEERING_IN_REGION1_VPC=$(aws ec2 describe-vpc-peering-connections --query "VpcPeeringConnections[?Status.Code!='deleted']" --region "${REGION1}")
 VPC_PEERING_IN_DIRECTION1=$(echo "${VPC_PEERING_IN_REGION1_VPC}" | jq -r ".[] | select(.AccepterVpcInfo.VpcId==\"${REGION1_VPC_ID}\") | select(.RequesterVpcInfo.VpcId==\"${REGION2_VPC_ID}\")")
 VPC_PEERING_IN_DIRECTION2=$(echo "${VPC_PEERING_IN_REGION1_VPC}" | jq -r ".[] | select(.AccepterVpcInfo.VpcId==\"${REGION2_VPC_ID}\") | select(.RequesterVpcInfo.VpcId==\"${REGION1_VPC_ID}\")")
