@@ -49,13 +49,9 @@ do
         S3_BUCKET_NAME="$2"
         shift 2
         ;;
-    '-f' | '--file-name' )
-      if [ -z "$2" ]; then
-          echo "option -f or --file-name requires an argument -- $1" 1>&2
-          exit 1
-      fi
-      FILE_NAME="$2"
-      shift 2
+    -*)
+      echo "illegal option -- $1" 1>&2
+      exit 1
       ;;
   esac
 done
@@ -83,15 +79,18 @@ if [ -z "${S3_BUCKET_NAME}" ] ; then
   >&2 echo "ERROR: option --s3-bucket needs to be passed"
   ERROR="1"
 fi
-if [ -z "${FILE_NAME}" ] ; then
-  >&2 echo "ERROR: option -f or --file-name needs to be passed"
-  ERROR="1"
-fi
-if ! INPUT_JSON=$(jq -r "." < "${FILE_NAME}"); then
-  >&2 echo "ERROR: Failed to read input JSON from ${FILE_NAME}"
-  ERROR="1"
-fi
 if [ -n "${ERROR}" ] ; then
+  exit 1
+fi
+
+######################################
+# 2.0. Check if everything is ready
+######################################
+if [ ! -f input.json ] ; then
+  >&2 echo "ERROR: input.json is not generated. Run generate-input-json.sh to generate it."
+  exit 1
+elif ! INPUT_JSON=$(jq -r "." < input.json); then
+  >&2 echo "ERROR: Failed to read input JSON from input.json"
   exit 1
 fi
 
