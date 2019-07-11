@@ -9,9 +9,9 @@ cd "$(dirname "$0")" || exit
 # sed to remove whitespace
 INSTANCE_TYPES=$(grep -v "#" < "instance-types.txt" | sed -e 's/\s//g' | grep -v "^$")
 
-for REGION in $(jq -r 'keys | .[]' cloudformation/output.json)
+for REGION in $(jq -r '.regions |  keys | .[]' cloudformation/output.json)
 do 
-  AVAILABILITY_ZONE=$(jq -r ".\"${REGION}\".availability_zone" cloudformation/output.json)
+  AVAILABILITY_ZONE=$(jq -r ".regions.\"${REGION}\".availability_zone" cloudformation/output.json)
 
   CHOSEN_INSTANCE_TYPE=""
   for INSTANCE_TYPE in $INSTANCE_TYPES
@@ -26,7 +26,7 @@ do
     >&2 echo "ERROR: none of instance types defined in file=${INSTANCE_PRIORITY_FILE} can be used in availability-zone=${AVAILABILITY_ZONE} of region=${REGION}"
     exit 1
   else
-    echo "{ \"${REGION}\": { \"instance_type\": \"${CHOSEN_INSTANCE_TYPE}\" } }" > "intermediate/${REGION}.json"
+    echo "{ \"regions\": { \"${REGION}\": { \"instance_type\": \"${CHOSEN_INSTANCE_TYPE}\" } } }" > "intermediate/${REGION}.json"
   fi
 done
 
