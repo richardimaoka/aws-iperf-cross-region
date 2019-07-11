@@ -86,7 +86,7 @@ AVAILABILITY_ZONE=$(aws ec2 describe-subnets \
 OUTPUT_FILE="intermediate/${REGION}.json"
 
 echo "{" > "${OUTPUT_FILE}"
-echo "  { \"regions\": {" > 
+echo "  \"regions\": {" >> "${OUTPUT_FILE}"
 echo "    \"${REGION}\": {" >> "${OUTPUT_FILE}"
 echo "      \"image_id\": \"${AMI_LINUX2}\"," >> "${OUTPUT_FILE}"
 echo "      \"security_group\": \"${SECURITY_GROUP_ID}\"," >> "${OUTPUT_FILE}"

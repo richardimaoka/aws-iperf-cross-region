@@ -3,6 +3,13 @@
 # cd to the current directory as it runs other shell scripts
 cd "$(dirname "$0")" || exit
 
+############################################################
+# Kill the child (background) processes on Ctrl+C = (SIG)INT
+############################################################
+# This script runs run-ec2-instance.sh in the background
+# https://superuser.com/questions/543915/whats-a-reliable-technique-for-killing-background-processes-on-script-terminati/562804
+trap 'kill -- -$$' INT
+
 ######################################
 # 1.1 Parse options
 ######################################
