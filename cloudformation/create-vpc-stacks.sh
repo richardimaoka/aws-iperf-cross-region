@@ -3,6 +3,13 @@
 # cd to the current directory as it runs other shell scripts
 cd "$(dirname "$0")" || exit
 
+############################################################
+# Kill the child (background) processes on Ctrl+C = (SIG)INT
+############################################################
+# This script runs run-ec2-instance.sh in the background
+# https://superuser.com/questions/543915/whats-a-reliable-technique-for-killing-background-processes-on-script-terminati/562804
+trap 'kill -- -$$' INT
+
 ######################################
 # 1.1 Parse options
 ######################################
@@ -45,9 +52,9 @@ do
       --parameters ParameterKey=SSHLocation,ParameterValue="${SSH_LOCATION}" \
                     ParameterKey=AWSAccountId,ParameterValue="${AWS_ACCOUNT_ID}" \
       --region "${REGION}" \
-      --output text
+      --output text &
   else
-    echo "Cloudformatoin stack in ${REGION} already exists"
+    echo "Cloudformation stack in ${REGION} already exists"
   fi
 done 
 
@@ -66,25 +73,41 @@ done
 ################################################
 # 4: Create VPC Peering in all the regions
 ################################################
-AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+# ./generate-region-pairs.sh
 
-for REGION1 in ${REGIONS}
+while IFS= read -r REGION_PAIR
 do
-  for REGION2 in ${REGIONS}
-  do
-    if [ "${REGION1}" != "${REGION2}" ] ; then
-      ./create-vpc-peering.sh \
-        --aws-account "${AWS_ACCOUNT_ID}" \
-        --stack-name "${STACK_NAME}" \
-        --region1 "${REGION1}" \
-        --region2 "${REGION2}"
-    fi      
-  done
-done
+  REGION1=$(echo "${REGION_PAIR}" | awk '{print $1}')
+  REGION2=$(echo "${REGION_PAIR}" | awk '{print $2}')
+
+  ./create-vpc-peering.sh \
+    --aws-account "${AWS_ACCOUNT_ID}" \
+    --stack-name "${STACK_NAME}" \
+    --region1 "${REGION1}" \
+    --region2 "${REGION2}" &
+done < region-pairs.txt
+
+######################################
+# 5. Wait until the children complete
+######################################
+echo "Wait until all the child processes are finished..."
+
+#Somehow VARIABLE=$(jobs -p) gets empty. So, need to use a file.
+TEMP_FILE=$(mktemp)
+jobs -p > "${TEMP_FILE}"
+
+# Read and go through the ${TEMP_FILE} lines
+while IFS= read -r PID
+do
+  wait "${PID}"
+done < "${TEMP_FILE}"
+
+rm "${TEMP_FILE}"
+echo "All the children finished!!"
 
 ########################################################
-# 5: Generate the json file used in the
+# 6: Generate the json file used in the
 # later testing phase
 #######################################################
 
-./generate-vpc-json.sh --stack-name "${STACK_NAME}" | jq "." > ../output.json
+./generate-whole-vpc-json.sh --stack-name "${STACK_NAME}" | jq "." > ../output.json

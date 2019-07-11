@@ -14,7 +14,7 @@ do
   case "$OPT" in
     '--aws-account' )
       if [ -z "$2" ]; then
-          echo "option --aws-account requires an argument -- $1" 1>&2
+          echo "option --aws-account requires an argument $1" 1>&2
           exit 1
       fi
       AWS_ACCOUNT_ID="$2"
@@ -22,7 +22,7 @@ do
       ;;
     '--stack-name' )
       if [ -z "$2" ]; then
-          echo "option --stack-name requires an argument -- $1" 1>&2
+          echo "option --stack-name requires an argument $1" 1>&2
           exit 1
       fi
       STACK_NAME="$2"
@@ -30,7 +30,7 @@ do
       ;;
     '--region1' )
       if [ -z "$2" ]; then
-          echo "option --region1 requires an argument -- $1" 1>&2
+          echo "option --region1 requires an argument $1" 1>&2
           exit 1
       fi
       REGION1="$2"
@@ -38,7 +38,7 @@ do
       ;;
     '--region2' )
       if [ -z "$2" ]; then
-          echo "option --region2 requires an argument -- $1" 1>&2
+          echo "option --region2 requires an argument $1" 1>&2
           exit 1
       fi
       REGION2="$2"

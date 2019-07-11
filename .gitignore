@@ -2,5 +2,6 @@
 .idea
 input.json
 intermediate
+cloudformation/region-pairs.txt
 cloudformation/output.json
 cloudformation/intermediate
