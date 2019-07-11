@@ -1,5 +1,6 @@
 .history
 .idea
-input-files
+input.json
+intermediate
 cloudformation/output.json
 cloudformation/intermediate
